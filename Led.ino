@@ -2,133 +2,78 @@
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 
-#define BLUE_PIN 15
-#define PULSE_TIMED 10
-#define MAX 10
-
 class LED_t
 {
     private:
-        int CS;
-        int INC;
-        int UD;
-        int value;
-
-    private:
-        void change_potentiometer_value();
-        void down(){ digitalWrite( this -> UD, 0 ); }
-        void up(){ digitalWrite( this -> UD, 1 ); }
+        byte pin;
+        byte value;
 
     public:
         LED_t();
-        void set_led( int CS, int INC, int UD );
-        void set_value( int intensity ){ this -> value = ( intensity <= 255 && intensity >= 0 ) ? ( intensity * 100 / 255 ) : 0; }; // VALUE MUST BE : [ 0; 100 ]; SO VALUE : 100 = INTENSITY : 255
-        void turn_off();
-        void turn_on();
-        void change( int value ){ turn_off(); if ( value ) { set_value( value ); turn_on(); } }
-
+        void set_led( byte pin, byte value );
         void init_pins();
-};
 
-void LED_t::change_potentiometer_value()
-{
-    digitalWrite( this -> INC, HIGH );
-    delay( PULSE_TIMED );
-    digitalWrite( this -> CS, LOW );
-    digitalWrite( this -> INC, LOW );
-    delay( PULSE_TIMED );
-    digitalWrite( this -> CS, HIGH );
-}
+        void change( byte value );
+};
 
 LED_t::LED_t()
 {
-    this -> CS = 0;
-    this -> INC = 0;
-    this -> UD = 0;
+    this -> pin = 0;
     this -> value = 0;
 }
 
-void LED_t::set_led( int CS, int INC, int UD )
+void LED_t::set_led( byte pin, byte value )
 {
-    this -> CS = CS;
-    this -> INC = INC;
-    this -> UD = UD;
-    this -> value = 0;
+    this -> pin = pin;
+    this -> value = value;
+
+    init_pins();
 }
 
-void LED_t::turn_off()
+void LED_t::change( byte value )
 {
-    up();
-    for ( int i = 0; i < MAX; i++ )
+    int value_to_reach = ( value <= 255 && value >= 0 ) ? ( value * 100 / 255 ) : 0; // VALUE MUST BE : [ 0; 100 ]; SO VALUE : 100 = INTENSITY : 255
+
+    if ( this -> value > value_to_reach )
     {
-        change_potentiometer_value();
-        delay( 20 );
+        while ( this -> value > value_to_reach )
+        {
+            analogWrite( this -> pin, this -> value );
+            delay( 20 );
+            this -> value--;
+        }
     }
-}
-
-void LED_t::turn_on()
-{
-    down();
-    for ( int i = 0; i < this -> value; i++ )
+    else if ( this -> value < value_to_reach )
     {
-        change_potentiometer_value();
-        delay( 20 );
+        while ( this -> value < value_to_reach )
+        {
+            analogWrite( this -> pin, this -> value );
+            delay( 20 );
+            this -> value++;
+        }
     }
 }
 
 void LED_t::init_pins()
 {
-    pinMode( this -> CS, OUTPUT );
-    digitalWrite( this -> CS, HIGH );
-    pinMode( this -> UD, OUTPUT );
-    pinMode( this -> INC, OUTPUT );
-    digitalWrite( this -> CS, HIGH );
+    pinMode( this -> pin, OUTPUT );
 }
 
 const char main_page[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
-<html>
-    <head>
-        <title>LED</title>
-    </head>
-    <body>
-        <h1>Colors Intensity</h1>
-
-        <div class = "colors" >
-            <a>Red</a><br>
-            <a id = "red_value" >%RED_value%</a>
-            <p><input id = "red" type = "range" onchange="change_value( this )" min = "0" max = "255" value = "%RED_value%" step = "1" > <!-- 0 -->
-        </div>
-
-        <div class = "colors" >
-            <a>Green</a><br>
-            <a id = "green_value" >%GREEN_value%</a>
-            <p><input id = "green" type = "range" onchange="change_value( this )" min = "0" max = "255" value = "%GREEN_value%" step = "1" > <!-- 0 -->
-        </div>
-
-        <div class = "colors" >
-            <a>Blue</a><br>
-            <a id = "blue_value" >%BLUE_value%<a>
-            <p><input id = "blue" type = "checkbox" onchange = "change_relay( this )" ></p>
-        </div>
-    </body>
-</html>
-
-<style>
-    .colors
-    {
-        text-align: center;
-        display: inline-block;
-        width: 33%;
-    }
-
-    h1
-    {
-        text-align: center;
-    }
-</style>
 
 <script> // 0 https://randomnerdtutorials.com/esp8266-nodemcu-web-server-slider-pwm/
+
+    var colors = { "red" : "255,0,0", "green" : "0,255,0", "blue" : "0,0,255", "purple" : "255,0,255", "yellow" : "255,128,0", "aqua" : "0,255,255", "white" : "255,255,255", "off" : "0,0,0" };
+
+    function load_buttons()
+    {
+        for ( color in colors )
+        {
+            document.write( '<input id = "' + color + '" class = "button" type = "button" onclick = "color_button( this )" value = "' + color.toUpperCase() + '" style = "background-color: rgb( ' + colors[color] + ' );">' );
+        }
+    }
+
     function change_value( element )
     {
         var value = document.getElementById( element.id ).value;
@@ -138,16 +83,88 @@ const char main_page[] PROGMEM = R"rawliteral(
         xhr.send();
     }
 
-    function change_relay( element )
+    function color_button( element )
     {
         var xhr = new XMLHttpRequest();
-        if ( element.checked )
-            xhr.open( "GET", "/relay?" + element.id + "_value=" + 1, true );
-        else
-            xhr.open( "GET", "/relay?" + element.id + "_value=" + 0, true );
+        xhr.open( "GET", "/button?" + "value=" + colors[element.id], true );
         xhr.send();
     }
+
 </script>
+
+<html>
+    <head>
+        <title>LED</title>
+    </head>
+    <body>
+        <h1>Colors Intensity</h1>
+        <div class = "colors" >
+            <a>Red</a><br>
+            <a id = "red_value" >%RED_value%</a>
+            <p><input style="width: 512px;" id = "red" type = "range" onchange = "change_value( this )" min = "0" max = "255" value = "%RED_value%" step = "1" > <!-- 0 -->
+        </div>
+        <div class = "colors" >
+            <a>Green</a><br>
+            <a id = "green_value" >%GREEN_value%</a>
+            <p><input style="width: 512px;" id = "green" type = "range" onchange = "change_value( this )" min = "0" max = "255" value = "%GREEN_value%" step = "1" > <!-- 0 -->
+        </div>
+        <div class = "colors" >
+            <a>Blue</a><br>
+            <a id = "blue_value" >%BLUE_value%<a>
+            <p><input style="width: 512px;" id = "blue" type = "range" onchange = "change_value( this )" min = "0" max = "255" value = "%BLUE_value%" step = "1" > <!-- 0 -->
+        </div>
+
+        <h1>Colors</h1>
+        <div class = "color_buttons" >
+            <script> load_buttons(); </script>
+        </div>
+    </body>
+    <footer>
+        <br><br>
+        <a href = "https://github.com/BlackWolf4k/Led/blob/main/Led.ino" target = "_blank" >Codice</a>
+    </footer>
+</html>
+<style>
+    h1
+    {
+        text-align: center;
+    }
+
+    .color_buttons
+    {
+        display: inline-block;
+        width: 50%;
+        margin: 0 25%;
+    }
+
+    .button
+    {
+        margin-top: 20px;
+        margin-left: 20px;
+        color: black;
+        width: 200px;
+        height: 100px;
+        padding: 32px 32px;
+        text-align: center;
+        font-size: 16px;
+        border: 2px solid black;
+    }
+
+    .colors
+    {
+        text-align: center;
+        height: 33%;
+        font-size: 48px;
+    }
+
+    footer, a
+    {
+        text-align: center;
+        text-decoration: none;
+        color: black;
+    }
+
+</style>
 )rawliteral";
 
 const char* ssid = "LED";
@@ -159,9 +176,8 @@ String BLUE_value = "0";
 
 LED_t RED_LED;
 LED_t GREEN_LED;
-//LED_t BLUE_LED;
+LED_t BLUE_LED;
 
-// 0
 String processor( const String& str ){
     if ( str == "RED_value" )
         return RED_value;
@@ -171,29 +187,100 @@ String processor( const String& str ){
         return BLUE_value;
 }
 
+void get_intensity( String str )
+{
+    int commas[2] = { 0 };
+    int string_length = str.length();
+
+    for ( int i = 0, counter = 0; i < string_length; i++ )
+    {
+        if ( str[i] == ',' )
+        {
+            commas[counter] = i;
+            counter++;
+        }
+    }
+
+    RED_value = str.substring( 0, commas[0] );
+    GREEN_value = str.substring( commas[0] + 1, commas[1] );
+    BLUE_value = str.substring( commas[1] + 1 );
+}
+
+void change_all( byte red, byte green, byte blue )
+{
+    RED_LED.change( red );
+    GREEN_LED.change( green );
+    BLUE_LED.change( blue );
+}
+
+byte value( String str )
+{
+    return (byte)str.toInt();
+}
+
+void elaborate_animation( String animation_string )
+{
+    int str_length = animation_string.length();
+    int parts = 0;
+    
+    int old = 0;
+    int next = 0;
+    while ( animation_string[next] != ';' || next >= str_length )
+        next++;
+
+    for ( int i = 0; i < str_length; i++ )
+        if ( animation_string[i] == ';' )
+            parts += 1;
+    
+    String colors[ parts / 2 ] = { "" };
+    String delays[ parts / 2 ] = { "" };
+
+    for ( int i = 0; i < parts; i++ )
+    {
+        if ( i % 2 == 0 )
+            colors[i] = animation_string.substring( old, next );
+        else
+            delays[i] = animation_string.substring( old, next );
+
+        old = next;
+        next++;
+        while ( animation_string[next] != ';' || next >= str_length )
+            next++;
+    }
+
+    for ( int i = 0; i < parts; i += 2 )
+    {
+        if ( colors[i] != "-" )
+        {
+            get_intensity( colors[i] );
+            change_all( value( RED_value ), value( GREEN_value ), value( BLUE_value ) );
+        }
+        i++;
+
+        if ( delays[i] == "-" )
+        {
+            change_all( value( RED_value ) - 10, value( GREEN_value ) - 10, value( BLUE_value ) - 10 );
+            delay( 500 );
+        }
+        else
+            delay( delays[i].toInt() * 1000 );
+    }
+}
+
 void setup()
 {
     // Start Access Point
     WiFi.softAP( ssid );
 
     // Init leds
-    RED_LED.set_led( 16, 5, 4 ); // D0 - D1 - D2
-    RED_LED.init_pins();
-    RED_LED.turn_off();
-
-    GREEN_LED.set_led( 0, 2, 14 ); // D3 - D4 - D5
-    GREEN_LED.init_pins();
-    GREEN_LED.turn_off();
-
-    pinMode( BLUE_PIN, OUTPUT ); // relay
-
-    // BLUE_LED.set_led( , , ); // D6 - D7 - D8
-    // BLUE_LED.init_pins();
+    RED_LED.set_led( 12, 0 ); // D6
+    GREEN_LED.set_led( 14, 0 ); // D5
+    BLUE_LED.set_led( 4, 0 ); // D2
 
     // Start Server
     server.on( "/", HTTP_GET, []( AsyncWebServerRequest *request ){ request->send_P( 200, "text/html", main_page, processor ); } );
 
-    // 0
+    // Handle slider requests
     server.on( "/slider", HTTP_GET, []( AsyncWebServerRequest *request )
     {
         if ( request -> hasParam( "red_value" ) )
@@ -206,20 +293,33 @@ void setup()
             GREEN_value = request -> getParam( "green_value" ) -> value();
             GREEN_LED.change( GREEN_value.toInt() );
         }
-        /*else if ( request -> hasParam( "blue_value" ) )
+        else if ( request -> hasParam( "blue_value" ) )
         {
             BLUE_value = request -> getParam( "blue_value" ) -> value();
             BLUE_LED.change( BLUE_value.toInt() );
-        }*/
+        }
         request->send_P( 200, "text/html", main_page, processor );
     } );
 
-    server.on( "/relay", HTTP_GET, []( AsyncWebServerRequest *request )
+    // Handle colors buttons requestes
+    server.on( "/button", HTTP_GET, []( AsyncWebServerRequest *request )
     {
-        if ( request -> hasParam( "blue_value" ) )
+        if ( request -> hasParam( "value" ) )
         {
-            BLUE_value = request -> getParam( "blue_value" ) -> value();
-            digitalWrite( BLUE_PIN, BLUE_value.toInt() );
+            String temp_value = request -> getParam( "value" ) -> value();
+            get_intensity( temp_value );
+            change_all( value( RED_value ), value( GREEN_value ), value( BLUE_value ) );
+        }
+        request->send_P( 200, "text/html", main_page, processor );
+    } );
+
+    // Handle animations requestes
+    server.on( "/animation", HTTP_GET, []( AsyncWebServerRequest *request )
+    {
+        if ( request -> hasParam( "string" ) )
+        {
+            String temp_value = request -> getParam( "string" ) -> value();
+            elaborate_animation( temp_value );
         }
         request->send_P( 200, "text/html", main_page, processor );
     } );
