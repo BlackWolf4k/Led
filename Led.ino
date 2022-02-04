@@ -65,21 +65,12 @@ const char main_page[] PROGMEM = R"rawliteral(
 <script> // 0 https://randomnerdtutorials.com/esp8266-nodemcu-web-server-slider-pwm/
 
     var colors = { "red" : "255,0,0", "green" : "0,255,0", "blue" : "0,0,255", "purple" : "255,0,255", "yellow" : "255,128,0", "aqua" : "0,255,255", "white" : "255,255,255", "off" : "0,0,0" };
-    var animations = { "Sosta" : "255,128,0;1;0,0,0;0.5", "Flash" : "-;1;0,0,0;0.5", "R-G-B" : "255,0,0;-;0,255,0;-0,0,255;-" };
 
     function load_buttons()
     {
         for ( color in colors )
         {
             document.write( '<input id = "' + color + '" class = "button" type = "button" onclick = "color_button( this )" value = "' + color.toUpperCase() + '" style = "background-color: rgb( ' + colors[color] + ' );">' );
-        }
-    }
-
-    function load_animations()
-    {
-        for ( animation in animations )
-        {
-            document.write( '<input id = "' + animation + '" class = "animation" type = "button" onclick = "start_animation( this )" value = "' + animation.toUpperCase() + '">' );
         }
     }
 
@@ -96,13 +87,6 @@ const char main_page[] PROGMEM = R"rawliteral(
     {
         var xhr = new XMLHttpRequest();
         xhr.open( "GET", "/button?" + element.id + "_value=" + colors[element.id], true );
-        xhr.send();
-    }
-
-    function start_animation( element )
-    {
-        var xhr = new XMLHttpRequest();
-        xhr.open( "GET", "/animation?" + element.id + "_string=" + animations[element.id], true );
         xhr.send();
     }
 
@@ -134,11 +118,6 @@ const char main_page[] PROGMEM = R"rawliteral(
         <div class = "color_buttons" >
             <script> load_buttons(); </script>
         </div>
-
-        <h1>Animations</h1>
-        <div class = "animations" >
-            <script> load_animations(); </script>
-        </div>
     </body>
     <footer>
         <br><br>
@@ -166,26 +145,6 @@ const char main_page[] PROGMEM = R"rawliteral(
     }
 
     .button
-    {
-        margin-top: 20px;
-        margin-left: 20px;
-        color: black;
-        width: 200px;
-        height: 100px;
-        padding: 32px 32px;
-        text-align: center;
-        font-size: 16px;
-        border: 2px solid black;
-    }
-
-    .animations
-    {
-        display: inline-block;
-        width: 50%;
-        margin: 0 25%;
-    }
-
-    .animation
     {
         margin-top: 20px;
         margin-left: 20px;
@@ -301,17 +260,6 @@ void setup()
             String temp_value = request -> getParam( "color_value" ) -> value();
             get_intensity( temp_value );
             change_all( value( RED_value ), value( GREEN_value ), value( BLUE_value ) );
-        }
-        request->send_P( 200, "text/html", main_page, processor );
-    } );
-
-    // Handle animations requestes
-    server.on( "/animation", HTTP_GET, []( AsyncWebServerRequest *request )
-    {
-        if ( request -> hasParam( "animation_string" ) )
-        {
-            String temp_value = request -> getParam( "animation_string" ) -> value();
-            elaborate_animation( temp_value );
         }
         request->send_P( 200, "text/html", main_page, processor );
     } );
